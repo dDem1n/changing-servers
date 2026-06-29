@@ -1,157 +1,57 @@
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs'); // ← ДЛЯ РАБОТЫ С ФАЙЛАМИ
-const app = express();
-const port = process.env.PORT || 10000;
+const { createClient } = require('@supabase/supabase-js'); // Импортируем Supabase
 
+const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ============================================================
-//  📦 СОХРАНЕНИЕ ДАННЫХ В ФАЙЛ
-// ============================================================
+// --- Подключаемся к Supabase ---
+const supabaseUrl = sb_secret_xNrEdVwFDVO361g9z0RzvQ_mwOBlrBD;
+const supabaseKey = sb_publishable_FEtDvGdU6DxUIJM_Xnv6YA_OIPfna4-;
+const supabase = createClient(supabaseUrl, supabaseKey); // [citation:10][citation:12]
+// ------------------------------
 
-const DATA_FILE = 'data.json';
+// Функция для получения данных игрока из БД
+async function getPlayer(username) {
+    const { data, error } = await supabase
+        .from('players') // Таблица в БД, создадим её чуть позже
+        .select('*')
+        .eq('username', username)
+        .single();
+    if (error) return null;
+    return data;
+}
 
-// Загружаем данные из файла при запуске
-function loadData() {
-  try {
-    if (fs.existsSync(DATA_FILE)) {
-      const data = fs.readFileSync(DATA_FILE, 'utf8');
-      players = JSON.parse(data);
-      console.log(`✅ Загружено ${Object.keys(players).length} игроков`);
+// Функция для сохранения данных игрока в БД
+async function savePlayer(username, data) {
+    const { error } = await supabase
+        .from('players')
+        .upsert({ username, ...data }); // Обновить или создать запись
+    if (error) console.error('Ошибка сохранения в Supabase:', error);
+}
+
+// --- Твой роут для входа ---
+app.post('/login', async (req, res) => {
+    const { username, password } = req.body;
+    const player = await getPlayer(username);
+    
+    if (player && player.password === password) {
+        res.json({ ok: true, data: player });
     } else {
-      players = {};
-      console.log('📝 Создан новый файл данных');
+        res.json({ ok: false, error: 'Неверный логин или пароль' });
     }
-  } catch (e) {
-    console.error('❌ Ошибка загрузки:', e);
-    players = {};
-  }
-}
-
-// Сохраняем данные в файл
-function saveData() {
-  try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(players, null, 2), 'utf8');
-    console.log('💾 Данные сохранены');
-  } catch (e) {
-    console.error('❌ Ошибка сохранения:', e);
-  }
-}
-
-// Загружаем при старте
-loadData();
-
-// Сохраняем каждые 10 секунд (на всякий случай)
-setInterval(saveData, 10000);
-
-// Сохраняем при завершении сервера
-process.on('SIGTERM', () => {
-  saveData();
-  process.exit(0);
 });
 
-process.on('SIGINT', () => {
-  saveData();
-  process.exit(0);
-});
-
-// ============================================================
-//  🌐 ОСНОВНЫЕ РОУТЫ
-// ============================================================
-
-// Проверка сервера
-app.get('/', (req, res) => {
-  res.json({ status: 'Сервер работает!' });
-});
-
-// Вход
-app.post('/login', (req, res) => {
-  const { username, password } = req.body;
-  
-  if (players[username] && players[username].password === password) {
-    res.json({ ok: true, data: players[username] });
-  } else {
-    res.json({ ok: false, error: 'Неверный логин или пароль' });
-  }
-});
-
-// Регистрация
-app.post('/register', (req, res) => {
-  const { username, password } = req.body;
-  
-  if (players[username]) {
-    res.json({ ok: false, error: 'Такой игрок уже есть' });
-  } else {
-    players[username] = { 
-      password: password,
-      coins: 1000,
-      mmr: 0,
-      wins: 0,
-      losses: 0,
-      calibrationGames: 0,
-      ownedWeapons: [],
-      activeWeaponId: -1,
-      starterCaseUsed: false,
-      nickColor: 'white',
-      ownedNickColors: ['white'],
-      bpXp: 0,
-      bpLevel: 0,
-      bpClaimed: [],
-      bpFreeCase: 0,
-      quests: {},
-      lastQuestReset: null,
-      allQuestsClaimed: false,
-      battleDamage: 0,
-      battleBlocks: 0,
-      bossKills: 0
-    };
-    saveData(); // ← СОХРАНЯЕМ СРАЗУ!
+// --- Роут для обновления данных ---
+app.post('/update', async (req, res) => {
+    const { username, data } = req.body;
+    await savePlayer(username, data);
     res.json({ ok: true });
-  }
 });
 
-// Получить данные игрока
-app.get('/player/:username', (req, res) => {
-  const username = req.params.username;
-  
-  if (players[username]) {
-    res.json({ ok: true, data: players[username] });
-  } else {
-    res.json({ ok: false, error: 'Игрок не найден' });
-  }
-});
+// --- Остальные твои роуты (регистрация, получение игрока) переписывай по такому же принципу ---
 
-// Обновить данные игрока
-app.post('/update', (req, res) => {
-  const { username, data } = req.body;
-  
-  if (players[username]) {
-    players[username] = { ...players[username], ...data };
-    saveData(); // ← СОХРАНЯЕМ ПОСЛЕ КАЖДОГО ОБНОВЛЕНИЯ!
-    res.json({ ok: true });
-  } else {
-    res.json({ ok: false, error: 'Игрок не найден' });
-  }
-});
-
-// Список всех игроков
-app.get('/players', (req, res) => {
-  const list = Object.keys(players).map(name => ({
-    name: name,
-    mmr: players[name].mmr,
-    wins: players[name].wins,
-    coins: players[name].coins
-  }));
-  res.json(list);
-});
-
-// ============================================================
-//  🚀 ЗАПУСК
-// ============================================================
-
-app.listen(port, () => {
-  console.log(`✅ Сервер работает на порту ${port}`);
-  console.log(`📊 Игроков в базе: ${Object.keys(players).length}`);
+app.listen(process.env.PORT || 3000, () => {
+    console.log('Сервер запущен!');
 });
