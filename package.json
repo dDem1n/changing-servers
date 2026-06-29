@@ -1,6 +1,8 @@
 {
   "name": "changing-server",
   "version": "1.0.0",
+  "description": "Сервер для игры Changing",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
