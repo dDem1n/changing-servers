@@ -3,17 +3,18 @@ const cors = require('cors');
 const app = express();
 const port = process.env.PORT || 3000;
 
+// ===== РАЗРЕШАЕМ ЗАПРОСЫ С ДРУГИХ САЙТОВ (CORS) =====
 app.use(cors());
 app.use(express.json());
 
 let players = {};
 
-// ===== ГЛАВНАЯ СТРАНИЦА (проверка что сервер работает) =====
+// ===== ГЛАВНАЯ СТРАНИЦА =====
 app.get('/', (req, res) => {
   res.json({ status: 'Сервер работает!' });
 });
 
-// ===== ВХОД В ИГРУ =====
+// ===== ВХОД =====
 app.post('/login', (req, res) => {
   const { username, password } = req.body;
   
@@ -81,7 +82,7 @@ app.post('/update', (req, res) => {
   }
 });
 
-// ===== ПОЛУЧИТЬ СПИСОК ВСЕХ ИГРОКОВ =====
+// ===== СПИСОК ВСЕХ ИГРОКОВ =====
 app.get('/players', (req, res) => {
   const list = Object.keys(players).map(name => ({
     name: name,
@@ -92,7 +93,7 @@ app.get('/players', (req, res) => {
   res.json(list);
 });
 
-// ===== ЗАПУСК СЕРВЕРА =====
+// ===== ЗАПУСК =====
 app.listen(port, () => {
   console.log(`✅ Сервер работает на порту ${port}`);
 });
